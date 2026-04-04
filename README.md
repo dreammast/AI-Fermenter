@@ -16,7 +16,7 @@
 
 <br/>
 
-[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Open_Dashboard-2563eb?style=for-the-badge)](https://fermentor-dashboard.onrender.com)
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Open_Dashboard-2563eb?style=for-the-badge)](https://ai-fermenter-9eq9.onrender.com/)
 
 </div>
 
