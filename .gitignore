@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.env
+venv/
+.venv/
+
+# Node / Vite UI (not needed for deployment)
+ui/node_modules/
+ui/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+*.ipynb_checkpoints
+
+# Large generated files (keep .pkl models - they ARE needed)
+*.png
+fermentation_dataset_v2.csv
+improve_models.py
+fermenter_dashboard_v2.jsx

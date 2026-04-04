@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>IIoT Fermenter · DO &amp; pH ML Dashboard</title>
+  <meta name="description" content="Real-time IIoT fermenter monitoring with ML-powered DO and pH predictions."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #f1f5f9;
+      font-family: 'Inter', sans-serif;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.6} }
+    .pulse { animation: pulse 1.8s ease-in-out infinite; }
+    .blink { animation: blink .7s ease-in-out infinite; }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    #header {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .hdr-brand { display: flex; align-items: center; gap: 12px; }
+    .hdr-logo {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg,#2563eb,#0ea5e9);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .hdr-sub { font-size: 10px; color: #94a3b8; letter-spacing: 2px; font-weight: 500; text-transform: uppercase; margin-bottom: 2px; }
+    .hdr-title { font-size: 15px; font-weight: 700; color: #1e293b; }
+    .hdr-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    /* Alarm badge */
+    #alarm-badge {
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 14px; border-radius: 20px; font-size: 11px;
+      font-weight: 700; letter-spacing: .5px; transition: all .3s;
+      border: 1.5px solid;
+    }
+    #alarm-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink:0; }
+
+    /* Connection pill */
+    #conn-pill { display:flex; align-items:center; gap:5px; font-size:11px; font-weight:500; }
+    #conn-dot { width:7px; height:7px; border-radius:50%; }
+
+    /* Mode buttons */
+    .mode-bar { display:flex; background:#f1f5f9; border-radius:8px; padding:3px; border:1px solid #e2e8f0; }
+    .mode-btn {
+      padding: 5px 12px; border-radius: 6px; font-size: 10px; font-weight: 600;
+      letter-spacing: .5px; cursor: pointer; font-family: inherit;
+      border: none; background: transparent; color: #64748b;
+      transition: all .2s; white-space: nowrap;
+    }
+    .mode-btn.active { background: #fff; color: #2563eb; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+
+    /* Run button */
+    #run-btn {
+      padding: 7px 16px; border-radius: 8px; font-size: 11px; font-weight: 600;
+      cursor: pointer; font-family: inherit; border: 1.5px solid; transition: all .2s;
+    }
+
+    /* ── Config bar ──────────────────────────────────────────────────────── */
+    #config-bar {
+      background: #fff; border-bottom: 1px solid #e2e8f0;
+      padding: 10px 28px; display: none; align-items: center; gap: 10px;
+    }
+    .cfg-label { font-size: 10px; font-weight: 600; color: #64748b; letter-spacing: 1px; white-space: nowrap; text-transform: uppercase; }
+    #cfg-url {
+      flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px;
+      padding: 6px 12px; color: #2563eb; font-size: 12px; font-family: 'Inter',sans-serif; outline: none;
+    }
+    #cfg-url:focus { border-color: #2563eb; box-shadow: 0 0 0 3px #2563eb18; }
+    .cfg-hint { font-size: 10px; color: #94a3b8; white-space: nowrap; }
+    #test-btn {
+      padding: 6px 14px; border-radius: 7px; font-size: 11px; font-weight: 600;
+      background: #2563eb; border: none; color: #fff; cursor: pointer; font-family: inherit;
+      transition: background .2s;
+    }
+    #test-btn:hover { background: #1d4ed8; }
+
+    /* ── Grid ───────────────────────────────────────────────────────────── */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px; padding: 20px 28px;
+    }
+
+    /* ── Cards ───────────────────────────────────────────────────────────── */
+    .card {
+      background: #fff; border: 1px solid #e2e8f0;
+      border-radius: 14px; padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .card-label { font-size: 11px; font-weight: 600; color: #64748b; letter-spacing: .8px; text-transform: uppercase; }
+    .span2 { grid-column: span 2; }
+
+    /* ── Stat pills ──────────────────────────────────────────────────────── */
+    .stat-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 20px;
+      font-size: 10px; font-weight: 600;
+    }
+
+    /* ── Gauges ──────────────────────────────────────────────────────────── */
+    .gauges-row { display: flex; justify-content: space-around; margin-bottom: 12px; }
+    .gauge-wrap { text-align: center; }
+    .gauge-label-main { font-size: 11px; font-weight: 600; color: #475569; margin-top: 4px; }
+    .gauge-range { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+    #tick-bar {
+      padding: 8px 12px; background: #f8fafc; border-radius: 8px;
+      font-size: 10px; color: #94a3b8; text-align: center;
+      border: 1px solid #e2e8f0; font-weight: 500;
+    }
+
+    /* ── Prediction values ───────────────────────────────────────────────── */
+    .pred-row { display: flex; gap: 10px; margin-bottom: 12px; }
+    .pred-box {
+      flex: 1; background: #f8fafc; border-radius: 10px;
+      padding: 14px; text-align: center; border: 1px solid #e2e8f0;
+    }
+    .pred-box-label { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: .5px; margin-bottom: 6px; text-transform: uppercase; }
+    .pred-value { font-size: 32px; font-weight: 800; line-height: 1; transition: color .3s; }
+    .pred-unit { font-size: 10px; color: #94a3b8; margin-top: 5px; font-weight: 500; }
+
+    /* Alarm state box */
+    #alarm-state-box {
+      border-radius: 10px; padding: 14px; text-align: center;
+      border: 1.5px solid; transition: all .3s;
+    }
+    #alarm-state-label { font-size: 10px; font-weight: 600; color: #64748b; letter-spacing: .5px; margin-bottom: 5px; text-transform: uppercase; }
+    #alarm-state-text { font-size: 22px; font-weight: 800; letter-spacing: 1px; transition: color .3s; }
+    #alarm-state-sub { font-size: 10px; color: #94a3b8; margin-top: 4px; }
+
+    /* ── Pump cards ──────────────────────────────────────────────────────── */
+    .pump-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; border-radius: 10px;
+      border: 1.5px solid; transition: all .35s; margin-bottom: 8px;
+    }
+    .pump-icon { font-size: 20px; }
+    .pump-name { font-size: 12px; font-weight: 700; transition: color .3s; }
+    .pump-desc { font-size: 10px; color: #94a3b8; margin-top: 1px; }
+    .pump-state {
+      margin-left: auto; padding: 3px 10px; border-radius: 12px;
+      font-size: 10px; font-weight: 700; letter-spacing: .5px; transition: all .3s;
+    }
+
+    /* ── Charts ──────────────────────────────────────────────────────────── */
+    .chart-legend { display: flex; gap: 14px; margin-bottom: 8px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #64748b; }
+    .legend-dot { width: 10px; height: 3px; border-radius: 2px; }
+    .chart-wrap { width: 100%; position: relative; }
+    canvas { display: block; }
+
+    /* ── Event log ───────────────────────────────────────────────────────── */
+    #log-container { max-height: 200px; overflow-y: auto; }
+    .log-entry {
+      display: flex; gap: 8px; padding: 5px 0;
+      border-bottom: 1px solid #f1f5f9; font-size: 10px; line-height: 1.4;
+    }
+    .log-time { color: #94a3b8; flex-shrink: 0; font-weight: 500; }
+    .log-empty { color: #cbd5e1; font-size: 11px; text-align: center; padding: 20px 0; }
+
+    /* ── Guide ───────────────────────────────────────────────────────────── */
+    #guide-content { font-size: 11px; line-height: 2; color: #475569; }
+    .guide-title { font-weight: 700; margin-bottom: 6px; }
+    .guide-step { display: flex; gap: 8px; }
+    .guide-num {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #2563eb; color: #fff;
+      font-size: 9px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
+    }
+    .guide-code {
+      background: #f1f5f9; border: 1px solid #e2e8f0;
+      border-radius: 7px; padding: 8px 12px;
+      font-family: 'Courier New', monospace; font-size: 10px;
+      color: #2563eb; margin-top: 8px; line-height: 1.8;
+    }
+
+    /* ── API info box ────────────────────────────────────────────────────── */
+    #api-info-box {
+      margin-top: 10px; background: #f0fdf4; border-radius: 8px;
+      padding: 10px 12px; border: 1px solid #bbf7d0; font-size: 10px;
+      color: #166534; display: none; line-height: 1.8;
+    }
+
+    /* ── Summary KPIs at top ─────────────────────────────────────────────── */
+    #kpi-bar {
+      display: flex; gap: 12px; padding: 0 28px 0; margin-top: -4px;
+      overflow-x: auto; padding-bottom: 0;
+    }
+    .kpi {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+      padding: 10px 18px; display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    }
+    .kpi-icon { font-size: 18px; }
+    .kpi-val { font-size: 18px; font-weight: 800; line-height: 1; }
+    .kpi-lbl { font-size: 10px; color: #94a3b8; font-weight: 500; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══ HEADER ════════════════════════════════════════════════════════════ -->
+<div id="header">
+  <div class="hdr-brand">
+    <div class="hdr-logo">🧫</div>
+    <div>
+      <div class="hdr-sub">IOT2526486 · IIoT Fermenter Monitor</div>
+      <div class="hdr-title">DO &amp; pH Control · ML Prediction Dashboard</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div id="alarm-badge">
+      <div id="alarm-dot"></div>
+      <span id="alarm-text">NORMAL</span>
+    </div>
+    <div id="conn-pill">
+      <div id="conn-dot"></div>
+      <span id="conn-label">SIMULATION</span>
+    </div>
+    <div class="mode-bar">
+      <button class="mode-btn active" id="btn-simulate" onclick="setMode('simulate')">Simulate</button>
+      <button class="mode-btn" id="btn-api"      onclick="setMode('api')">Python API</button>
+      <button class="mode-btn" id="btn-esp32"    onclick="setMode('esp32')">ESP32 HTTP</button>
+    </div>
+    <button id="run-btn" onclick="toggleRun()">⏸ Pause</button>
+  </div>
+</div>
+
+<!-- ═══ CONFIG BAR ════════════════════════════════════════════════════════ -->
+<div id="config-bar">
+  <span class="cfg-label" id="cfg-label">Python API URL</span>
+  <input type="text" id="cfg-url" value="http://localhost:5000"/>
+  <button id="test-btn" onclick="testApi()" style="display:none">Test Connection</button>
+  <span class="cfg-hint" id="cfg-hint"></span>
+</div>
+
+<!-- ═══ KPI BAR ══════════════════════════════════════════════════════════ -->
+<div style="padding:16px 28px 0">
+  <div id="kpi-bar">
+    <div class="kpi">
+      <div class="kpi-icon">💧</div>
+      <div><div class="kpi-val" id="kpi-do" style="color:#2563eb">6.200</div><div class="kpi-lbl">Live DO (mg/L)</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">🧪</div>
+      <div><div class="kpi-val" id="kpi-ph" style="color:#7c3aed">7.000</div><div class="kpi-lbl">Live pH</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">🔮</div>
+      <div><div class="kpi-val" id="kpi-pred-do" style="color:#0ea5e9">—</div><div class="kpi-lbl">Predicted DO</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">📈</div>
+      <div><div class="kpi-val" id="kpi-pred-ph" style="color:#7c3aed">—</div><div class="kpi-lbl">Predicted pH</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">🔄</div>
+      <div><div class="kpi-val" id="kpi-tick" style="color:#64748b">0</div><div class="kpi-lbl">Tick #</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon">⏱️</div>
+      <div><div class="kpi-val" id="kpi-time" style="color:#64748b;font-size:14px">--:--:--</div><div class="kpi-lbl">Last Update</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MAIN GRID ══════════════════════════════════════════════════════════ -->
+<div id="grid">
+
+  <!-- Card 1: Gauges -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-label">Live Sensor Readings</span>
+      <span id="real-model-badge" class="stat-pill" style="background:#eff6ff;color:#2563eb;display:none">● Real ML Model</span>
+    </div>
+    <div class="gauges-row">
+      <div class="gauge-wrap">
+        <svg id="gauge-DO" width="140" height="115" viewBox="0 0 130 110" style="overflow:visible"></svg>
+        <div class="gauge-label-main">Dissolved O₂</div>
+        <div class="gauge-range">Target: 5.5 – 7.0 mg/L</div>
+      </div>
+      <div class="gauge-wrap">
+        <svg id="gauge-pH" width="140" height="115" viewBox="0 0 130 110" style="overflow:visible"></svg>
+        <div class="gauge-label-main">Acidity (pH)</div>
+        <div class="gauge-range">Target: 6.5 – 7.5</div>
+      </div>
+    </div>
+    <div id="tick-bar">Waiting for first reading…</div>
+  </div>
+
+  <!-- Card 2: ML Prediction -->
+  <div class="card" id="pred-card">
+    <div class="card-header">
+      <span class="card-label">ML Prediction — Next 5 Min</span>
+    </div>
+    <div class="pred-row">
+      <div class="pred-box">
+        <div class="pred-box-label">Predicted DO</div>
+        <div class="pred-value" id="pred-do-val">—</div>
+        <div class="pred-unit">mg/L</div>
+      </div>
+      <div class="pred-box">
+        <div class="pred-box-label">Predicted pH</div>
+        <div class="pred-value" id="pred-ph-val">—</div>
+        <div class="pred-unit">pH Units</div>
+      </div>
+    </div>
+    <div id="alarm-state-box">
+      <div id="alarm-state-label">Alarm State</div>
+      <div id="alarm-state-text">NORMAL</div>
+      <div id="alarm-state-sub">Advisory only · No direct pump override</div>
+    </div>
+  </div>
+
+  <!-- Card 3: Pumps -->
+  <div class="card">
+    <div class="card-header"><span class="card-label">Automatic Control (Rule-Based)</span></div>
+
+    <div id="pump-air" class="pump-row" style="border-color:#e2e8f0;background:#f8fafc;">
+      <span class="pump-icon">💨</span>
+      <div>
+        <div class="pump-name" id="pump-air-name" style="color:#475569">Air Pump</div>
+        <div class="pump-desc">Fires when DO &lt; 5.5 mg/L</div>
+      </div>
+      <div class="pump-state" id="pump-air-state" style="background:#f1f5f9;color:#94a3b8">OFF</div>
+    </div>
+
+    <div id="pump-base" class="pump-row" style="border-color:#e2e8f0;background:#f8fafc;">
+      <span class="pump-icon">🧪</span>
+      <div>
+        <div class="pump-name" id="pump-base-name" style="color:#475569">Base Pump</div>
+        <div class="pump-desc">Fires when pH &lt; 6.5 (raises pH)</div>
+      </div>
+      <div class="pump-state" id="pump-base-state" style="background:#f1f5f9;color:#94a3b8">OFF</div>
+    </div>
+
+    <div id="pump-acid" class="pump-row" style="border-color:#e2e8f0;background:#f8fafc;">
+      <span class="pump-icon">⚗️</span>
+      <div>
+        <div class="pump-name" id="pump-acid-name" style="color:#475569">Acid Pump</div>
+        <div class="pump-desc">Fires when pH &gt; 7.5 (lowers pH)</div>
+      </div>
+      <div class="pump-state" id="pump-acid-state" style="background:#f1f5f9;color:#94a3b8">OFF</div>
+    </div>
+
+    <div id="api-info-box">
+      <strong>✅ Python API Connected</strong><br/>
+      <span id="api-models"></span><br/>
+      <span id="api-version"></span>
+    </div>
+  </div>
+
+  <!-- Card 4: DO Chart (span 2) -->
+  <div class="card span2">
+    <div class="card-header">
+      <span class="card-label">Dissolved Oxygen — Actual vs Predicted</span>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#2563eb"></div>Actual</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f97316;border-top:2px dashed #f97316;height:0"></div>Predicted</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart-DO"></canvas></div>
+  </div>
+
+  <!-- Card 5: Event Log -->
+  <div class="card">
+    <div class="card-header"><span class="card-label">System Event Log</span></div>
+    <div id="log-container"><div class="log-empty">Waiting for events…</div></div>
+  </div>
+
+  <!-- Card 6: pH Chart (span 2) -->
+  <div class="card span2">
+    <div class="card-header">
+      <span class="card-label">pH Level — Actual vs Predicted</span>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>Actual</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Predicted</div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart-pH"></canvas></div>
+  </div>
+
+  <!-- Card 7: Setup Guide -->
+  <div class="card">
+    <div class="card-header"><span class="card-label">Setup Guide</span></div>
+    <div id="guide-content"></div>
+  </div>
+
+</div><!-- /grid -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  IIoT Fermenter Dashboard — Vanilla JS
+// ═══════════════════════════════════════════════════════════════
+const DO_LOW=5.5, DO_HIGH=7.0, DO_CRIT=4.5;
+const PH_LOW=6.5, PH_HIGH=7.5, PH_CRIT_L=5.8, PH_CRIT_H=8.2;
+const TICK_MS=2500, MAX_H=60;
+
+// Auto-detect API base: same origin when deployed on Render, localhost in dev
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:5000'
+  : window.location.origin;
+
+const ALARM={
+  0:{label:"NORMAL",  color:"#16a34a", bg:"#f0fdf4", border:"#86efac", text:"#15803d"},
+  1:{label:"WARNING", color:"#d97706", bg:"#fffbeb", border:"#fcd34d", text:"#b45309"},
+  2:{label:"CRITICAL",color:"#dc2626", bg:"#fef2f2", border:"#fca5a5", text:"#b91c1c"},
+};
+const PUMP_COLORS = { air:"#2563eb", base:"#16a34a", acid:"#d97706" };
+
+let mode="simulate", running=true, tick=0;
+let sensor={DO:6.2,pH:7.0};
+let pumps={air:false,base:false,acid:false};
+let pred={pred_do:null,pred_ph:null,alarm:0};
+let history=[];
+let timerID=null;
+
+const $=id=>document.getElementById(id);
+const ts=()=>new Date().toLocaleTimeString("en-GB");
+
+// ── Physics/ML helpers ─────────────────────────────────────────
+function localPredict(DO,pH,air,acid,base){
+  const do_drop=0.08+Math.random()*0.06;
+  const ph_drift=-0.04+Math.random()*0.04;
+  let pd=Math.max(2,Math.min(9.5,DO-do_drop+(air?0.20+Math.random()*0.10:0)+(Math.random()-.5)*0.04));
+  let pp=Math.max(5,Math.min(9,pH+ph_drift+(base?0.14+Math.random()*0.08:0)-(acid?0.14+Math.random()*0.08:0)+(Math.random()-.5)*0.03));
+  let alarm=0;
+  if(pd<DO_CRIT||pp<PH_CRIT_L||pp>PH_CRIT_H) alarm=2;
+  else if(pd<DO_LOW||pp<PH_LOW||pp>PH_HIGH)   alarm=1;
+  return{pred_do:+pd.toFixed(3),pred_ph:+pp.toFixed(3),alarm};
+}
+
+function simulateSensor(prev,p){
+  let DO=Math.max(2,Math.min(9.5,prev.DO-0.08-Math.random()*0.06+(p.air?0.20+Math.random()*0.10:0)+(Math.random()-.5)*0.05));
+  let pH=Math.max(5,Math.min(9,  prev.pH-0.04-Math.random()*0.03+(p.base?0.15+Math.random()*0.08:0)-(p.acid?0.15+Math.random()*0.08:0)+(Math.random()-.5)*0.03));
+  return{DO:+DO.toFixed(3),pH:+pH.toFixed(3)};
+}
+
+function ruleControl(DO,pH){ return{air:DO<DO_LOW,base:pH<PH_LOW,acid:pH>PH_HIGH}; }
+
+// ── Log ────────────────────────────────────────────────────────
+function addLog(msg,type="info"){
+  const colors={critical:"#dc2626",warning:"#d97706",success:"#16a34a",error:"#dc2626",info:"#475569"};
+  const lc=$("log-container");
+  const placeholder=lc.querySelector(".log-empty");
+  if(placeholder) placeholder.remove();
+  const div=document.createElement("div");
+  div.className="log-entry"; div.style.color=colors[type]||colors.info;
+  div.innerHTML=`<span class="log-time">${ts()}</span><span>${msg}</span>`;
+  lc.insertBefore(div,lc.firstChild);
+  while(lc.children.length>40) lc.removeChild(lc.lastChild);
+}
+
+// ── Gauge (SVG) ────────────────────────────────────────────────
+function drawGauge(svgId,value,min,max,low,high,color,unit,label){
+  const svg=$(svgId);
+  const R=50,CX=65,CY=70;
+  const toRad=deg=>deg*Math.PI/180;
+  const pt=deg=>({x:CX+R*Math.cos(toRad(deg)),y:CY+R*Math.sin(toRad(deg))});
+  const pct=Math.max(0,Math.min(1,(value-min)/(max-min)));
+  const s=pt(-135),e=pt(135),needle=pt(-135+pct*270);
+  const lpct=Math.max(0,Math.min(1,(low-min)/(max-min)));
+  const hpct=Math.max(0,Math.min(1,(high-min)/(max-min)));
+  const sl=pt(-135+lpct*270),sh=pt(-135+hpct*270),la=(hpct-lpct)*270>180?1:0;
+
+  svg.innerHTML=`
+    <path d="M${s.x} ${s.y} A${R} ${R} 0 1 1 ${e.x} ${e.y}" fill="none" stroke="#e2e8f0" stroke-width="10" stroke-linecap="round"/>
+    <path d="M${sl.x} ${sl.y} A${R} ${R} 0 ${la} 1 ${sh.x} ${sh.y}" fill="none" stroke="${color}28" stroke-width="10"/>
+    <path d="M${s.x} ${s.y} A${R} ${R} 0 ${pct>.5?1:0} 1 ${needle.x} ${needle.y}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ${color}66)"/>
+    <circle cx="${needle.x}" cy="${needle.y}" r="5" fill="${color}" style="filter:drop-shadow(0 0 5px ${color}88)"/>
+    <text x="65" y="68" text-anchor="middle" fill="#1e293b" font-size="20" font-weight="800" font-family="Inter,sans-serif">${value}</text>
+    <text x="65" y="82" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">${unit}</text>
+    <text x="65" y="98" text-anchor="middle" fill="#64748b" font-size="7.5" font-weight="600" font-family="Inter,sans-serif">${label}</text>`;
+}
+
+// ── Canvas Chart ───────────────────────────────────────────────
+function drawChart(canvasId,data,k1,k2,c1,c2,yMin,yMax,refLow,refHigh){
+  const canvas=$(canvasId);
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth||500, H=165;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+"px"; canvas.style.height=H+"px";
+  const ctx=canvas.getContext("2d"); ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+  const PAD={l:34,r:12,t:8,b:24};
+  const iW=W-PAD.l-PAD.r, iH=H-PAD.t-PAD.b;
+  const xOf=i=>PAD.l+i*(iW/(Math.max(data.length-1,1)));
+  const yOf=v=>PAD.t+iH*(1-(v-yMin)/(yMax-yMin));
+
+  // Grid + y labels
+  for(let g=0;g<=4;g++){
+    const y=PAD.t+g*(iH/4), val=yMax-(g*(yMax-yMin)/4);
+    ctx.strokeStyle="#e2e8f0"; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(PAD.l,y); ctx.lineTo(W-PAD.r,y); ctx.stroke();
+    ctx.fillStyle="#94a3b8"; ctx.font="500 9px Inter,sans-serif"; ctx.textAlign="right";
+    ctx.fillText(val.toFixed(1),PAD.l-4,y+3);
+  }
+  ctx.setLineDash([]);
+
+  // Reference lines
+  [[refLow,"#ef4444"],[refHigh,"#22c55e"]].forEach(([v,c])=>{
+    const y=yOf(v);
+    ctx.strokeStyle=c; ctx.globalAlpha=.4; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(PAD.l,y); ctx.lineTo(W-PAD.r,y); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=.7;
+    ctx.fillStyle=c; ctx.font="bold 8px Inter,sans-serif"; ctx.textAlign="left";
+    ctx.fillText(v,PAD.l+3,y-3); ctx.globalAlpha=1;
+  });
+
+  if(data.length<2) return;
+
+  // Line 1
+  ctx.strokeStyle=c1; ctx.lineWidth=2.5; ctx.setLineDash([]); ctx.globalAlpha=1;
+  ctx.beginPath();
+  data.forEach((d,i)=>{const x=xOf(i),y=yOf(d[k1]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
+  ctx.stroke();
+
+  // Line 2 (dashed)
+  ctx.strokeStyle=c2; ctx.lineWidth=2; ctx.setLineDash([6,3]);
+  ctx.beginPath();
+  data.forEach((d,i)=>{const x=xOf(i),y=yOf(d[k2]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // X labels
+  ctx.fillStyle="#94a3b8"; ctx.font="500 9px Inter,sans-serif"; ctx.textAlign="center"; ctx.globalAlpha=1;
+  const pts=[[0,data[0].t],[Math.floor((data.length-1)/2),data[Math.floor((data.length-1)/2)]?.t],[data.length-1,data[data.length-1].t]];
+  pts.filter(([i])=>i<data.length).forEach(([i,l])=>ctx.fillText(l,xOf(i),H-5));
+}
+
+// ── UI Update ──────────────────────────────────────────────────
+function updateUI(){
+  const al=ALARM[pred.alarm];
+
+  // KPI bar
+  $("kpi-do").textContent=sensor.DO;
+  $("kpi-ph").textContent=sensor.pH;
+  $("kpi-pred-do").textContent=pred.pred_do!==null?pred.pred_do:"—";
+  $("kpi-pred-ph").textContent=pred.pred_ph!==null?pred.pred_ph:"—";
+  $("kpi-tick").textContent=tick;
+  $("kpi-time").textContent=ts();
+
+  // KPI colors
+  $("kpi-do").style.color=sensor.DO<DO_LOW?"#dc2626":sensor.DO>DO_HIGH?"#d97706":"#2563eb";
+  $("kpi-ph").style.color=sensor.pH<PH_LOW?"#dc2626":sensor.pH>PH_HIGH?"#d97706":"#7c3aed";
+
+  // Alarm badge
+  const badge=$("alarm-badge");
+  badge.style.background=al.bg; badge.style.borderColor=al.border; badge.style.color=al.text;
+  $("alarm-dot").style.background=al.color;
+  $("alarm-dot").style.boxShadow=pred.alarm>0?`0 0 0 3px ${al.color}33`:"none";
+  $("alarm-text").textContent=al.label;
+  if(pred.alarm>0){ badge.classList.add("blink"); $("alarm-dot").classList.add("pulse"); }
+  else{ badge.classList.remove("blink"); $("alarm-dot").classList.remove("pulse"); }
+
+  // Gauges
+  drawGauge("gauge-DO",sensor.DO,2,9.5,DO_LOW,DO_HIGH,sensor.DO<DO_LOW?"#ef4444":"#2563eb","mg/L","DISSOLVED O₂");
+  drawGauge("gauge-pH",sensor.pH,5,9,PH_LOW,PH_HIGH,sensor.pH<PH_LOW?"#ef4444":sensor.pH>PH_HIGH?"#d97706":"#7c3aed","pH","ACIDITY");
+  $("tick-bar").textContent=`Tick #${tick} · Updated at ${ts()} · Mode: ${mode.toUpperCase()}`;
+
+  // Prediction card
+  $("pred-card").style.borderColor=al.border;
+  if(pred.pred_do!==null){
+    $("pred-do-val").textContent=pred.pred_do;
+    $("pred-do-val").style.color=pred.pred_do<DO_LOW?"#dc2626":"#2563eb";
+    $("pred-ph-val").textContent=pred.pred_ph;
+    $("pred-ph-val").style.color=pred.pred_ph<PH_LOW?"#dc2626":pred.pred_ph>PH_HIGH?"#d97706":"#7c3aed";
+  }
+  const asb=$("alarm-state-box");
+  asb.style.background=al.bg; asb.style.borderColor=al.border;
+  $("alarm-state-text").textContent=al.label; $("alarm-state-text").style.color=al.color;
+  $("real-model-badge").style.display=mode==="api"?"flex":"none";
+
+  // Pumps
+  setPump("air",  pumps.air);
+  setPump("base", pumps.base);
+  setPump("acid", pumps.acid);
+
+  // Charts
+  drawChart("chart-DO",history,"DO","pred_do","#2563eb","#f97316",4,8,DO_LOW,DO_HIGH);
+  drawChart("chart-pH",history,"pH","pred_ph","#7c3aed","#f59e0b",5.5,8.5,PH_LOW,PH_HIGH);
+
+  updateGuide();
+}
+
+function setPump(name,active){
+  const el=$("pump-"+name), c=PUMP_COLORS[name];
+  el.style.background=active?c+"12":"#f8fafc";
+  el.style.borderColor=active?c:"#e2e8f0";
+  el.style.boxShadow=active?`0 2px 8px ${c}22`:"none";
+  const nameEl=$("pump-"+name+"-name");
+  if(nameEl) nameEl.style.color=active?c:"#475569";
+  const st=$("pump-"+name+"-state");
+  if(st){
+    st.textContent=active?"ON":"OFF";
+    st.style.background=active?c+"18":"#f1f5f9";
+    st.style.color=active?c:"#94a3b8";
+  }
+}
+
+function updateGuide(){
+  const g=$("guide-content");
+  if(mode==="simulate"){
+    g.innerHTML=`<div class="guide-title" style="color:#2563eb">▶ Simulation Mode Active</div>
+    <p style="color:#64748b;margin-bottom:8px">Sensor readings are generated locally using a physics‑based model. Predictions use the built‑in rule engine.</p>
+    <p style="color:#94a3b8;font-size:10px">Switch to <strong>Python API</strong> to run your real trained <code>.pkl</code> models.</p>`;
+  }else if(mode==="api"){
+    g.innerHTML=`<div class="guide-title" style="color:#2563eb">🔬 Python API Mode</div>
+    <div class="guide-code">POST /predict → 14-feature ML output<br>GET  /simulate → sensor reading<br>GET  /status   → health check</div>
+    <p style="color:#94a3b8;font-size:10px;margin-top:8px">API computes rolling statistics, trend deltas, and setpoint distances automatically.</p>`;
+  }else{
+    g.innerHTML=`<div class="guide-title" style="color:#d97706">📡 ESP32 HTTP Mode</div>
+    <p style="color:#64748b;margin-bottom:8px">Connect your ESP32 to the same Wi‑Fi and enter its IP address above.</p>
+    <div class="guide-code">Expected JSON:<br>{"DO": 5.8, "pH": 6.9}</div>
+    <p style="color:#94a3b8;font-size:10px;margin-top:8px">Add <code>Access-Control-Allow-Origin: *</code> header in firmware.</p>`;
+  }
+}
+
+// ── Mode / Config ──────────────────────────────────────────────
+function setMode(m){
+  mode=m;
+  ["simulate","api","esp32"].forEach(x=>{
+    $("btn-"+x).classList.toggle("active",m===x);
+  });
+  const bar=$("config-bar");
+  if(m==="simulate"){
+    bar.style.display="none"; setConn(true,"SIMULATION");
+  }else{
+    bar.style.display="flex";
+    $("test-btn").style.display=m==="api"?"":"none";
+    $("cfg-label").textContent=m==="api"?"Python API URL":"ESP32 URL";
+    $("cfg-url").value=m==="api"?API_BASE:"http://192.168.1.100/data";
+    $("cfg-hint").textContent=m==="api"?"Serving 14-feature ML models (v2)":'ESP32 must return: {"DO":5.8,"pH":6.9}';
+    if(m==="api") testApi();
+  }
+  updateGuide();
+}
+
+function setConn(ok,label){
+  const dot=$("conn-dot"),c=ok?"#16a34a":"#dc2626";
+  dot.style.background=c;
+  if(ok) dot.classList.add("pulse"); else dot.classList.remove("pulse");
+  $("conn-label").textContent=label||(ok?"CONNECTED":"DISCONNECTED");
+  $("conn-label").style.color=ok?"#16a34a":"#dc2626";
+}
+
+async function testApi(){
+  const url=($("cfg-url")||{}).value||API_BASE;
+  try{
+    const r=await fetch(url+"/status"); const j=await r.json();
+    setConn(true,"CONNECTED");
+    addLog("✅ Python API connected — "+j.features?.length+" features | models: "+(j.models||[]).join(", "),"success");
+    $("api-info-box").style.display="block";
+    $("api-models").textContent="Models: "+(j.models||[]).join(" · ");
+    $("api-version").textContent="API version: "+j.version;
+  }catch(e){
+    setConn(false,"DISCONNECTED");
+    addLog("❌ Cannot reach API: "+e.message,"error");
+    $("api-info-box").style.display="none";
+  }
+}
+
+// ── Run/Pause ──────────────────────────────────────────────────
+function toggleRun(){
+  running=!running;
+  const btn=$("run-btn");
+  if(running){
+    btn.textContent="⏸ Pause";
+    btn.style.background="#fff8f1"; btn.style.borderColor="#fb923c"; btn.style.color="#ea580c";
+    startTimer();
+  }else{
+    btn.textContent="▶ Resume";
+    btn.style.background="#f0fdf4"; btn.style.borderColor="#4ade80"; btn.style.color="#16a34a";
+    clearInterval(timerID);
+  }
+}
+
+// ── Main tick ──────────────────────────────────────────────────
+async function doTick(){
+  let ns, np, npumps;
+
+  if(mode==="simulate"){
+    npumps  = ruleControl(sensor.DO, sensor.pH);
+    ns      = simulateSensor(sensor, npumps);
+    np      = localPredict(ns.DO, ns.pH, npumps.air?1:0, npumps.acid?1:0, npumps.base?1:0);
+    setConn(true,"SIMULATION");
+
+  }else if(mode==="api"){
+    const url=($("cfg-url")||{}).value||API_BASE;
+    try{
+      const simRes=await fetch(url+"/simulate"); const simData=await simRes.json();
+      ns={DO:simData.DO, pH:simData.pH};
+
+      const predRes=await fetch(url+"/predict",{
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          DO:ns.DO, pH:ns.pH,
+          air_pump:  ns.DO<DO_LOW?1:0,
+          acid_pump: ns.pH>PH_HIGH?1:0,
+          base_pump: ns.pH<PH_LOW?1:0,
+        })
+      });
+      if(!predRes.ok){
+        const err=await predRes.json();
+        throw new Error(err.error||"HTTP "+predRes.status);
+      }
+      const pd=await predRes.json();
+      if(!pd.auto_control) throw new Error("Missing auto_control in response");
+
+      np={pred_do:pd.predicted_DO, pred_ph:pd.predicted_pH, alarm:pd.alarm_label};
+      npumps={air:pd.auto_control.air_pump, base:pd.auto_control.base_pump, acid:pd.auto_control.acid_pump};
+      setConn(true,"CONNECTED");
+      addLog(`API → DO=${ns.DO} pH=${ns.pH} | pred_DO=${np.pred_do} | ${ALARM[np.alarm].label}`,
+             np.alarm===2?"critical":np.alarm===1?"warning":"info");
+    }catch(e){
+      setConn(false,"DISCONNECTED");
+      addLog("❌ API error: "+e.message,"error"); return;
+    }
+
+  }else if(mode==="esp32"){
+    const url=($("cfg-url")||{}).value||"http://192.168.1.100/data"; // ESP32 always needs manual IP
+    try{
+      const r=await fetch(url); const d=await r.json();
+      ns={DO:+parseFloat(d.DO).toFixed(3), pH:+parseFloat(d.pH).toFixed(3)};
+      npumps=ruleControl(ns.DO,ns.pH);
+      np=localPredict(ns.DO,ns.pH,npumps.air?1:0,npumps.acid?1:0,npumps.base?1:0);
+      setConn(true,"CONNECTED");
+      addLog(`ESP32 → DO=${ns.DO}, pH=${ns.pH}`,"info");
+    }catch(e){
+      setConn(false,"DISCONNECTED");
+      addLog("❌ ESP32 error: "+e.message,"error"); return;
+    }
+  }
+
+  sensor=ns; pumps=npumps; pred=np; tick++;
+  history=[...history,{t:ts(),DO:ns.DO,pH:ns.pH,pred_do:np.pred_do,pred_ph:np.pred_ph}].slice(-MAX_H);
+  if(pred.alarm===2) addLog(`🔴 CRITICAL — pred DO=${pred.pred_do}, pH=${pred.pred_ph}`,"critical");
+  else if(pred.alarm===1&&mode==="simulate") addLog(`🟡 WARNING — pred DO=${pred.pred_do}`,"warning");
+  updateUI();
+}
+
+function startTimer(){ clearInterval(timerID); timerID=setInterval(doTick,TICK_MS); }
+
+// ── Boot ───────────────────────────────────────────────────────
+(function init(){
+  const btn=$("run-btn");
+  btn.style.background="#fff8f1"; btn.style.borderColor="#fb923c"; btn.style.color="#ea580c"; btn.style.borderRadius="8px"; btn.style.fontFamily="inherit";
+  setConn(true,"SIMULATION");
+  updateGuide();
+  doTick();
+  startTimer();
+})();
+
+window.addEventListener('resize',()=>{
+  if(history.length>=2){
+    drawChart("chart-DO",history,"DO","pred_do","#2563eb","#f97316",4,8,DO_LOW,DO_HIGH);
+    drawChart("chart-pH",history,"pH","pred_ph","#7c3aed","#f59e0b",5.5,8.5,PH_LOW,PH_HIGH);
+  }
+});
+</script>
+</body>
+</html>
