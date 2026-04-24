@@ -182,9 +182,13 @@ def predict_get():
         _update_history(DO_val, pH_val)
 
         alarm_info = ALARM_MAP.get(pred_alarm, ALARM_MAP[0])
-        return jsonify({
-            "DO": DO_val, "pH": pH_val,
-            "predicted_DO": pred_do, "predicted_pH": pred_ph,
+        timestamp  = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        response = {
+            "input":        {"DO": DO_val, "pH": pH_val, "air_pump": air_pump,
+                             "acid_pump": acid_pump, "base_pump": base_pump},
+            "predicted_DO": pred_do,
+            "predicted_pH": pred_ph,
             "alarm_label":  pred_alarm,
             "alarm_text":   alarm_info["text"],
             "alarm_color":  alarm_info["color"],
@@ -193,8 +197,15 @@ def predict_get():
                 "base_pump": bool(pH_val < PH_LOW),
                 "acid_pump": bool(pH_val > PH_HIGH),
             },
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        }), 200
+            "timestamp":    timestamp,
+        }
+
+        prediction_log.append(response)
+        if len(prediction_log) > 200:
+            prediction_log.pop(0)
+
+        print(f"[{timestamp}] (GET) DO={DO_val}→{pred_do} | pH={pH_val}→{pred_ph} | {alarm_info['text']}")
+        return jsonify(response), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

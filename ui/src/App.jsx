@@ -122,7 +122,7 @@ export default function FermenterDashboard() {
   const TICK   = 2500;
   const MAX_H  = 60;
 
-  const [mode,    setMode]    = useState("simulate");   // simulate | api | esp32
+  const [mode,    setMode]    = useState("simulate");   // simulate | api | esp32 | live
   const [apiUrl,  setApiUrl]  = useState("http://localhost:5000");
   const [esp32Url,setEsp32Url]= useState("http://192.168.1.100/data");
   const [running, setRunning] = useState(true);
@@ -135,6 +135,8 @@ export default function FermenterDashboard() {
   const [log,     setLog]     = useState([]);
   const [tick,    setTick]    = useState(0);
   const [apiInfo, setApiInfo] = useState(null);
+  
+  const lastCloudTsRef = useRef(null);
 
   const prevRef = useRef({ DO: 6.2, pH: 7.0 });
 
@@ -231,6 +233,41 @@ export default function FermenterDashboard() {
           addLog("❌ ESP32 fetch failed: " + err.message, "error");
           return;
         }
+      // ── LIVE CLOUD MODE (ESP32) ───────────────────────────────────────────
+      } else if (mode === "live") {
+        try {
+          const r = await fetch(`${apiUrl}/history?n=1`);
+          const hist = await r.json();
+          if (!hist || hist.length === 0) {
+             setConn(false);
+             return; 
+          }
+          const last = hist[0];
+          newSensor = { DO: last.input.DO, pH: last.input.pH };
+          newPred = { 
+            pred_do: last.predicted_DO, 
+            pred_ph: last.predicted_pH, 
+            alarm: last.alarm_label, 
+            alarm_text: last.alarm_text, 
+            alarm_color: last.alarm_color 
+          };
+          newPumps = { 
+            air: last.auto_control.air_pump, 
+            base: last.auto_control.base_pump, 
+            acid: last.auto_control.acid_pump 
+          };
+          setConn(true);
+          
+          if (lastCloudTsRef.current !== last.timestamp) {
+            addLog(`Cloud → DO=${newSensor.DO} pH=${newSensor.pH} | AI_DO=${newPred.pred_do} | ${newPred.alarm_text}`, 
+              newPred.alarm === 2 ? "critical" : newPred.alarm === 1 ? "warning" : "info");
+            lastCloudTsRef.current = last.timestamp;
+          }
+        } catch (err) {
+          setConn(false);
+          addLog("❌ Cloud fetch failed: " + err.message, "error");
+          return;
+        }
       }
 
       prevRef.current = newSensor;
@@ -284,6 +321,7 @@ export default function FermenterDashboard() {
             <ModeBtn label="SIMULATE"   active={mode==="simulate"} onClick={()=>setMode("simulate")} />
             <ModeBtn label="PYTHON API" active={mode==="api"}      onClick={()=>setMode("api")} />
             <ModeBtn label="ESP32 HTTP" active={mode==="esp32"}    onClick={()=>setMode("esp32")} />
+            <ModeBtn label="LIVE CLOUD (ESP32)" active={mode==="live"} onClick={()=>setMode("live")} />
           </div>
 
           <button onClick={()=>setRunning(r=>!r)} style={{
@@ -296,10 +334,10 @@ export default function FermenterDashboard() {
       </div>
 
       {/* ── CONFIG BAR ─────────────────────────────────────────────────────── */}
-      {mode !== "simulate" && (
+      {(mode === "api" || mode === "esp32" || mode === "live") && (
         <div style={{ background:"#03070e", padding:"10px 24px", borderBottom:"1px solid #0d2035",
           display:"flex", alignItems:"center", gap:"12px" }}>
-          {mode === "api" && (<>
+          {(mode === "api" || mode === "live") && (<>
             <span style={{ color:"#2a5070", fontSize:"10px", letterSpacing:"2px", whiteSpace:"nowrap" }}>PYTHON API</span>
             <input value={apiUrl} onChange={e=>setApiUrl(e.target.value)}
               style={{ flex:1, background:"#060e1a", border:"1px solid #0d2035", borderRadius:"6px",
@@ -308,7 +346,7 @@ export default function FermenterDashboard() {
               background:"#0a2040", border:"1px solid #0055aa", color:"#00b4ff", cursor:"pointer", fontFamily:"inherit", letterSpacing:"1px" }}>
               TEST
             </button>
-            <span style={{ color:"#2a5070", fontSize:"9px" }}>Runs your real model_DO.pkl · model_pH.pkl · model_alarm.pkl</span>
+            <span style={{ color:"#2a5070", fontSize:"9px" }}>{mode === "api" ? "Runs your real model_DO.pkl · model_pH.pkl · model_alarm.pkl" : "Fetches the latest prediction pushed by ESP32"}</span>
           </>)}
           {mode === "esp32" && (<>
             <span style={{ color:"#2a5070", fontSize:"10px", letterSpacing:"2px", whiteSpace:"nowrap" }}>ESP32 URL</span>
@@ -493,6 +531,16 @@ export default function FermenterDashboard() {
               </div>
               <div>4. Add CORS header to firmware</div>
               <div>5. Enter IP URL above</div>
+            </>}
+
+            {mode==="live" && <>
+              <div style={{ color:"#00e5a0", marginBottom:"6px", fontSize:"10px" }}>▸ Live Cloud Mode</div>
+              <div>1. Connect your ESP32 to Wi-Fi</div>
+              <div>2. The ESP32 POSTs to the Python API</div>
+              <div>3. The Dashboard automatically fetches the latest data</div>
+              <div style={{ background:"#03070e", padding:"7px", borderRadius:"5px", color:"#00e5a0", margin:"6px 0" }}>
+                GET /history?n=1
+              </div>
             </>}
 
           </div>
